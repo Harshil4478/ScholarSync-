@@ -1,4 +1,3 @@
-
 import sqlite3
 from datetime import datetime
 
@@ -136,5 +135,101 @@ def get_request_count():
 
     return count
 
+# ---------- RESOURCE INVENTORY ----------
+
+def initialize_inventory():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            resource_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            quantity INTEGER NOT NULL CHECK(quantity >= 0),
+            unit TEXT NOT NULL,
+            location TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
+    # Link stock to a relief centre (NULL = central warehouse / not linked).
+    columns = {row[1] for row in cursor.execute("PRAGMA table_info(inventory)")}
+    if "centre_id" not in columns:
+        cursor.execute("ALTER TABLE inventory ADD COLUMN centre_id INTEGER")
+
+    conn.commit()
+    conn.close()
+
+
+def add_inventory_item(name, category, quantity, unit, location, centre_id=None):
+    if not name.strip() or not location.strip():
+        raise ValueError("Resource name and location are required")
+
+    if quantity < 0:
+        raise ValueError("Quantity cannot be negative")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO inventory (
+            resource_name,
+            category,
+            quantity,
+            unit,
+            location,
+            updated_at,
+            centre_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        name.strip(),
+        category,
+        quantity,
+        unit,
+        location.strip(),
+        datetime.now().isoformat(timespec="seconds"),
+        centre_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_inventory():
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+
+    records = conn.execute("""
+        SELECT * FROM inventory
+        ORDER BY updated_at DESC
+    """).fetchall()
+
+    conn.close()
+
+    return [dict(row) for row in records]
+
+
+def update_inventory_quantity(item_id, new_quantity):
+    if new_quantity < 0:
+        raise ValueError("Quantity cannot be negative")
+
+    conn = get_connection()
+
+    conn.execute("""
+        UPDATE inventory
+        SET quantity = ?, updated_at = ?
+        WHERE id = ?
+    """, (
+        new_quantity,
+        datetime.now().isoformat(timespec="seconds"),
+        item_id
+    ))
+
+    conn.commit()
+    conn.close()
+
 
 initialize_database()
+initialize_inventory()
