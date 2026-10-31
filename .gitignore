@@ -1,0 +1,15 @@
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# API keys and secrets
+.env
+.streamlit/secrets.toml
+
+# Local databases
+*.db
+
+# VS Code settings
+.vscode/
